@@ -195,6 +195,7 @@ function newMap(id, opts) {
   return new maplibregl.Map(Object.assign({ container: id, style: baseStyle(), center: [-74.55, 39.75], zoom: 7.4,
     attributionControl: { compact: true }, cooperativeGestures: id !== 'mapAnim' }, opts || {}));
 }
+const MAXD_DEFAULT = { minzoom: 7, maxzoom: 13, flooded_km2: {} };
 async function getJSON(p) { try { const r = await fetch(p); if (!r.ok) return null; return await r.json(); } catch (e) { return null; } }
 const ft = m => (m * 3.28084).toFixed(1);
 function pending(el, what) { el.innerHTML = `<div class="pending">${what} — coming soon</div>`; }
@@ -279,11 +280,11 @@ const TOWNS = [
 (async function explore() {
   const map = newMap('mapMax');
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-  const meta = await getJSON('data/maxdepth/meta.json');
+  const meta = (await getJSON('data/maxdepth/meta.json')) || MAXD_DEFAULT;
   const hwm = await getJSON('data/hwm.geojson');
   await new Promise(r => map.on('load', r));
   if (meta) {
-    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: meta.minzoom, maxzoom: meta.maxzoom, bounds: meta.bounds });
+    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: meta.minzoom, maxzoom: meta.maxzoom, ...(meta.bounds ? { bounds: meta.bounds } : {}) });
     map.addLayer({ id: 'maxd', type: 'raster', source: 'maxd', paint: { 'raster-resampling': 'nearest' } });
   }
   addLabels(map);
@@ -337,7 +338,7 @@ const TOWNS = [
 
 /* ---------- 4. Social vulnerability ---------- */
 (async function svi() {
-  const tracts = await getJSON('data/svi_tracts.geojson'), sum = await getJSON('data/svi_summary.json'), md = await getJSON('data/maxdepth/meta.json');
+  const tracts = await getJSON('data/svi_tracts.geojson'), sum = await getJSON('data/svi_summary.json'), md = (await getJSON('data/maxdepth/meta.json')) || MAXD_DEFAULT;
   if (!tracts) { pending(document.getElementById('mapSvi'), 'The social vulnerability map'); return; }
   if (sum) renderSviSummary(sum);
   const map = newMap('mapSvi', { center: [-74.4, 40.0], zoom: 7.6 });
@@ -348,7 +349,7 @@ const TOWNS = [
     paint: { 'fill-color': ['interpolate', ['linear'], ['coalesce', ['get', 'svi'], 0], 0, '#3b2c16', 0.5, '#9a6a26', 1, '#ffc061'], 'fill-opacity': 0.8 } });
   map.addLayer({ id: 'tr-line', type: 'line', source: 'tr', filter: ['>', ['coalesce', ['get', 'flooded_pct'], 0], 0.5], paint: { 'line-color': '#0b0f17', 'line-width': 0.6 } });
   if (md) {
-    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: md.minzoom, maxzoom: md.maxzoom, bounds: md.bounds });
+    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: md.minzoom, maxzoom: md.maxzoom, ...(md.bounds ? { bounds: md.bounds } : {}) });
     map.addLayer({ id: 'maxd', type: 'raster', source: 'maxd', paint: { 'raster-opacity': 0.85 } });
   }
   addLabels(map);
