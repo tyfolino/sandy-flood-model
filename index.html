@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandy Flood Model</title>
+<meta name="description" content="A computer model of Hurricane Sandy's 2012 flood across the New Jersey coast and Delaware Bay — hour by hour, town by town. Preliminary research results.">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b0f17; --surface: #121a26; --surface-2: #192335; --line: #26324a;
+  --ink: #eef2f8; --ink-2: #b6c0d2; --ink-3: #7f8aa0;
+  --water: #4fa8ff; --water-hi: #c8e6ff;
+  --obs: #b8bec9; --model: #4fa8ff;
+  --under: #f28c3a; --over: #a98bf0; --even: #8a8f99;
+  --svi-lo: #3b2c16; --svi-hi: #ffc061;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; line-height: 1.55; }
+a { color: var(--water); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+header.hero { position: relative; height: 100vh; min-height: 560px; }
+#mapAnim { position: absolute; inset: 0; }
+.hero-card { position: absolute; left: 16px; top: 16px; max-width: 420px; background: rgba(11,15,23,.82);
+  backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; z-index: 2; }
+.hero-card h1 { margin: 0 0 6px; font-size: clamp(26px, 4vw, 40px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.hero-card p { margin: 0 0 8px; color: var(--ink-2); font-size: 15px; }
+.badge { display: inline-block; font-size: 12px; font-weight: 600; color: #ffd27a; border: 1px solid #6b5420;
+  background: #2a2112; border-radius: 999px; padding: 2px 10px; }
+.player { position: absolute; left: 16px; right: 16px; bottom: 22px; z-index: 2; max-width: 860px; margin: 0 auto;
+  background: rgba(11,15,23,.86); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.player-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.btn { background: var(--water); color: #04121f; border: 0; border-radius: 999px; font-weight: 700; padding: 8px 16px; cursor: pointer; font-size: 14px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); border: 1px solid var(--water); }
+.clock { font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; min-width: 210px; }
+.clock small { display: block; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.stat-inline { font-variant-numeric: tabular-nums; }
+.stat-inline b { font-size: 22px; color: var(--water-hi); }
+.stat-inline span { display: block; font-size: 12px; color: var(--ink-3); }
+input[type=range] { width: 100%; accent-color: var(--water); }
+.gaugebox { height: 92px; margin-top: 8px; }
+.loading { color: var(--ink-3); font-size: 13px; }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.ramp { width: 160px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, rgb(31,95,168), rgb(47,134,214), rgb(79,168,255), rgb(140,200,255), rgb(200,230,255), #fff); }
+section { padding: 72px 0 24px; border-top: 1px solid var(--line); }
+section h2 { font-size: clamp(24px, 3vw, 32px); margin: 0 0 8px; letter-spacing: -.01em; }
+.lede { color: var(--ink-2); max-width: 760px; font-size: 17px; margin: 0 0 20px; }
+.map { height: 72vh; min-height: 420px; border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden; position: relative; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.chip { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.chip:hover, .chip:focus-visible { border-color: var(--water); outline: none; }
+.overlay-ctl { position: absolute; top: 12px; left: 12px; z-index: 2; background: rgba(11,15,23,.86); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; max-width: 290px; }
+.overlay-ctl label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 16px 0; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.tile .num { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.tile .lbl { color: var(--ink-2); font-size: 13px; }
+.slr-steps { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.chartcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.chartcard h3 { margin: 0; font-size: 15px; }
+.chartcard .sub { color: var(--ink-3); font-size: 12px; margin-bottom: 6px; }
+.chartcard .cv { height: 190px; }
+.bars { display: grid; gap: 6px; margin-top: 8px; }
+.bar { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+.bar .track { height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar .fill { height: 100%; border-radius: 0 4px 4px 0; }
+.bar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.note { color: var(--ink-3); font-size: 13px; max-width: 820px; }
+.pending { padding: 28px; text-align: center; color: var(--ink-3); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
+footer { padding: 48px 0 64px; color: var(--ink-3); font-size: 13px; border-top: 1px solid var(--line); margin-top: 48px; }
+footer h3 { color: var(--ink-2); font-size: 15px; }
+.maplibregl-popup-content { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; font: 13px/1.45 Inter, sans-serif; }
+.maplibregl-popup-tip { border-top-color: var(--surface) !important; border-bottom-color: var(--surface) !important; }
+.maplibregl-ctrl-attrib { background: rgba(11,15,23,.7) !important; color: var(--ink-3); }
+.maplibregl-ctrl-attrib a { color: var(--ink-2); }
+@media (max-width: 640px) {
+  .hero-card { right: 16px; max-width: none; padding: 14px; }
+  .hero-card p.more { display: none; }
+  .clock { min-width: 0; font-size: 18px; }
+  .bar { grid-template-columns: 110px 1fr 70px; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div id="mapAnim" aria-label="Animated map of flooding during Hurricane Sandy"></div>
+  <div class="hero-card">
+    <span class="badge">Preliminary research model</span>
+    <h1>Hurricane Sandy, hour by hour</h1>
+    <p>A computer model of the October 2012 flood along New Jersey's coast and Delaware Bay. Storm surge, waves, wind, rain and rivers are all computed together, the way they arrived.</p>
+    <p class="more">Blue shows water standing on ground that is normally dry. Press play, then zoom into any town.</p>
+  </div>
+  <div class="player">
+    <div class="player-row">
+      <button class="btn" id="play" aria-label="Play animation">▶ Play</button>
+      <div class="clock" id="clock">Loading…<small>&nbsp;</small></div>
+      <div class="stat-inline"><b id="area">–</b><span>km² of normally dry land under water</span></div>
+      <div class="legend" style="margin-left:auto"><span>10 cm</span><div class="ramp"></div><span>4.5 m+</span></div>
+    </div>
+    <input type="range" id="scrub" min="0" max="72" value="0" aria-label="Time">
+    <div class="gaugebox"><canvas id="gaugeMini" aria-label="Water level at a tide gauge, measured and modelled"></canvas></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="explore">
+  <h2>Explore your town</h2>
+  <p class="lede">The deepest the water got anywhere, at about 20 m detail. The dots are high-water marks: water lines that U.S. Geological Survey crews surveyed after the storm. Click one to see what was measured and what the model computed there.</p>
+  <div class="chips" id="towns"></div>
+  <div class="map" id="mapMax">
+    <div class="overlay-ctl">
+      <label><input type="checkbox" id="tgHwm" checked> High-water marks</label>
+      <div class="legend" style="margin-top:6px">
+        <span style="color:var(--under)">●</span> model lower
+        <span style="color:var(--even)">●</span> within 30 cm
+        <span style="color:var(--over)">●</span> model higher
+      </div>
+      <div class="legend" style="margin-top:6px"><span>flood depth 10 cm</span><div class="ramp" style="width:90px"></div><span>4.5 m+</span></div>
+      <label style="margin-top:6px"><input type="checkbox" id="tgSat"> Satellite basemap</label>
+    </div>
+  </div>
+</section>
+
+<section id="slr">
+  <h2>What if Sandy came on a higher sea?</h2>
+  <p class="lede">The same storm, run three times: on today's sea level, then with the sea 2 m and 3 m higher. These three runs are surge and wind only (no waves or rain), so they compare with each other, not with the full model above. They are stress tests of the model, not forecasts.</p>
+  <div class="slr-steps" role="group" aria-label="Sea level">
+    <button class="btn" data-slr="0" aria-pressed="true">Sea level as in 2012</button>
+    <button class="btn ghost" data-slr="2" aria-pressed="false">+2 m (6.6 ft)</button>
+    <button class="btn ghost" data-slr="3" aria-pressed="false">+3 m (9.8 ft)</button>
+  </div>
+  <div class="tiles" id="slrTiles"></div>
+  <div class="map" id="mapSlr"></div>
+</section>
+
+<section id="people">
+  <h2>Who lives where the water went</h2>
+  <p class="lede">Census tracts shaded by the CDC/ATSDR Social Vulnerability Index (brighter means more vulnerable: income, age, disability, language, housing and transport together). Only tracts where the model floods some normally dry land are shown. The flood itself is drawn on top.</p>
+  <div class="tiles" id="sviTiles"></div>
+  <div id="sviBars"></div>
+  <div class="map" id="mapSvi" style="margin-top:14px">
+    <div class="overlay-ctl">
+      <label><input type="checkbox" id="tgSviFlood" checked> Show the flood on top</label>
+      <div class="legend" style="margin-top:6px"><span>less vulnerable</span>
+        <div style="width:110px;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--svi-lo),var(--svi-hi))"></div><span>more</span></div>
+    </div>
+  </div>
+  <p class="note">Across every tract in the model area, people split almost evenly between the four vulnerability quarters. In the heavily flooded tracts, 60% live in the more vulnerable half (51% across the whole area): a real tilt, but a modest one.</p>
+  <p class="note">How to read this: a tract's "flooded" share is the part of its land the model puts under at least 15 cm of water, with permanent water removed. Tidal marsh counts as land, so marsh-heavy tracts score high even where few people live near the water. Living in such a tract does not mean a household was flooded. Vulnerability is the 2010 CDC/ATSDR SVI (ranked within New Jersey); population is the 2010 Census.</p>
+</section>
+
+<section id="check">
+  <h2>How close is the model to what happened?</h2>
+  <p class="lede">The model is tested against water levels that were actually measured: tide gauges that recorded the storm minute by minute, and the surveyed high-water marks.</p>
+  <div class="tiles" id="accTiles"></div>
+  <div class="charts" id="gaugeCharts"></div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h3>About this model</h3>
+    <p>Built with <a href="https://www.deltares.nl/en/software-and-data/products/sfincs">SFINCS</a>, a fast compound-flood model from Deltares, on a grid of about 4.9 million cells that refines to ~12 m along the coast. Ocean water levels come from the USACE North Atlantic Coast Comprehensive Study (NACCS) Sandy simulation; waves are computed with SnapWave; wind and pressure come from NACCS and ERA5; rainfall and USGS river flows are included. Results are <b>preliminary</b>: the model is still being refined and has not been peer-reviewed.</p>
+    <p>Data: USGS Hurricane Sandy high-water marks (STN); NOAA CO-OPS and USGS water-level gauges; CDC/ATSDR Social Vulnerability Index; U.S. Census Bureau TIGER/Line tracts; basemaps © OpenStreetMap contributors © CARTO, and Esri World Imagery.</p>
+    <p>Ty Janoski · 2026</p>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const DARK = { type: 'raster', tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO',
+  tiles: ['a','b','c','d'].map(s => `https://${s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png`) };
+const SAT = { type: 'raster', tileSize: 256, attribution: 'Esri, Maxar, Earthstar Geographics',
+  tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] };
+const LABELS = { type: 'raster', tileSize: 256,
+  tiles: ['a','b','c','d'].map(s => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`) };
+function baseStyle() {
+  return { version: 8, sources: { dark: DARK, sat: SAT, labels: LABELS },
+    layers: [ { id: 'dark', type: 'raster', source: 'dark' },
+              { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' } } ] };
+}
+function addLabels(map) { map.addLayer({ id: 'labels', type: 'raster', source: 'labels' }); }
+function newMap(id, opts) {
+  return new maplibregl.Map(Object.assign({ container: id, style: baseStyle(), center: [-74.55, 39.75], zoom: 7.4,
+    attributionControl: { compact: true }, cooperativeGestures: id !== 'mapAnim' }, opts || {}));
+}
+async function getJSON(p) { try { const r = await fetch(p); if (!r.ok) return null; return await r.json(); } catch (e) { return null; } }
+const ft = m => (m * 3.28084).toFixed(1);
+function pending(el, what) { el.innerHTML = `<div class="pending">${what} — coming soon</div>`; }
+
+/* ---------- Gauge mini chart (shared helper) ---------- */
+const cursorPlugin = { id: 'cursor', afterDatasetsDraw(c) {
+  const x = c.$cursorX; if (x == null) return; const { ctx, chartArea: a } = c; const px = c.scales.x.getPixelForValue(x);
+  ctx.save(); ctx.strokeStyle = '#eef2f8'; ctx.globalAlpha = .7; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.restore(); } };
+function gaugeChart(canvas, st, mini) {
+  const t = st.t.map(s => new Date(s.endsWith('Z') ? s : s + 'Z').getTime());
+  const pts = arr => arr.map((v, i) => ({ x: t[i], y: v }));
+  return new Chart(canvas, { type: 'line', plugins: [cursorPlugin],
+    data: { datasets: [
+      { label: 'Measured', data: pts(st.obs), borderColor: getComputedStyle(document.body).getPropertyValue('--obs'), borderWidth: 2, pointRadius: 0, spanGaps: false },
+      { label: 'Model', data: pts(st.model), borderColor: getComputedStyle(document.body).getPropertyValue('--model'), borderWidth: 2, pointRadius: 0, borderDash: [] } ] },
+    options: { animation: false, maintainAspectRatio: false, parsing: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: !mini, labels: { color: '#b6c0d2', boxWidth: 14, boxHeight: 2 } },
+        tooltip: { callbacks: { title: it => edt(it[0].parsed.x), label: it => `${it.dataset.label}: ${it.parsed.y?.toFixed(2)} m (${ft(it.parsed.y)} ft)` } } },
+      scales: { x: { type: 'linear', min: t[0], max: t[t.length - 1], grid: { color: '#1a2333' },
+          ticks: { color: '#7f8aa0', maxTicksLimit: mini ? 4 : 4, callback: v => dayLabel(v) } },
+        y: { grid: { color: '#1a2333' }, ticks: { color: '#7f8aa0', maxTicksLimit: mini ? 3 : 5, callback: v => v + ' m' } } } } });
+}
+function edt(ms) { return new Date(ms - 4 * 3600e3).toLocaleString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' EDT'; }
+function dayLabel(ms) { return new Date(ms - 4 * 3600e3).toLocaleString('en-US', { timeZone: 'UTC', weekday: 'short', hour: 'numeric' }); }
+
+/* ---------- 1. The animation ---------- */
+(async function anim() {
+  const map = newMap('mapAnim', { center: [-74.6, 39.7], zoom: 7.3, cooperativeGestures: false });
+  map.scrollZoom.disable(); map.on('click', () => map.scrollZoom.enable());
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  const meta = await getJSON('data/anim/meta.json');
+  const clock = document.getElementById('clock'), area = document.getElementById('area'), scrub = document.getElementById('scrub');
+  if (!meta) { clock.innerHTML = 'Animation coming soon<small>&nbsp;</small>'; return; }
+  const n = meta.times_utc.length; scrub.max = n - 1;
+  const urls = new Array(n);
+  let loaded = 0;
+  const loadOne = async i => { const b = await (await fetch(`data/anim/f${String(i).padStart(2, '0')}.webp`)).blob(); urls[i] = URL.createObjectURL(b); loaded++; };
+  const first = loadOne(0);
+  await new Promise(r => map.on('load', r));
+  await first;
+  map.addSource('flood', { type: 'image', url: urls[0], coordinates: meta.coordinates });
+  map.addLayer({ id: 'flood', type: 'raster', source: 'flood', paint: { 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } });
+  addLabels(map);
+  const rest = []; for (let i = 1; i < n; i++) rest.push(i);
+  (async () => { while (rest.length) await Promise.all(rest.splice(0, 6).map(loadOne)); })();
+
+  let gauge = null, gaugeT0 = 0;
+  const g = await getJSON('data/gauges.json');
+  if (g && g.stations && g.stations.length) {
+    const st = g.stations.find(s => /mantoloking/i.test(s.name)) || g.stations[0];
+    gauge = gaugeChart(document.getElementById('gaugeMini'), st, true);
+    gauge.options.plugins.title = { display: true, text: `${st.name}: water level, measured (grey) and modelled (blue)`, color: '#b6c0d2', font: { size: 11 }, align: 'start', padding: 2 };
+    gauge.update();
+  } else { document.querySelector('.gaugebox').style.display = 'none'; }
+
+  let i = 0, timer = null;
+  function show(k) {
+    i = k; scrub.value = k;
+    if (urls[k]) map.getSource('flood').updateImage({ url: urls[k], coordinates: meta.coordinates });
+    const ms = new Date(meta.times_utc[k] + 'Z').getTime();
+    const landfall = Math.abs(ms - Date.UTC(2012, 9, 29, 23, 30)) <= 90 * 60e3;
+    clock.innerHTML = `${edt(ms)}<small>${landfall ? '🌀 Sandy makes landfall near Brigantine' : `hour ${k} of ${n - 1}`}</small>`;
+    area.textContent = Math.round(meta.flooded_km2[k]).toLocaleString();
+    if (gauge) { gauge.$cursorX = ms; gauge.draw(); }
+  }
+  const btn = document.getElementById('play');
+  function stop() { clearInterval(timer); timer = null; btn.textContent = '▶ Play'; }
+  btn.onclick = () => {
+    if (timer) return stop();
+    btn.textContent = '❚❚ Pause';
+    timer = setInterval(() => { const k = (i + 1) % n; if (!urls[k]) return; show(k); if (k === n - 1) stop(); }, 170);
+  };
+  scrub.oninput = () => { stop(); show(+scrub.value); };
+  show(0);
+})();
+
+/* ---------- 2. Explore your town ---------- */
+const TOWNS = [
+  ['Sea Bright', -73.975, 40.36, 13.2], ['Union Beach & Keansburg', -74.15, 40.445, 12.6], ['Little Ferry & Moonachie', -74.045, 40.84, 12.8],
+  ['Mantoloking', -74.05, 40.035, 13.3], ['Seaside Heights', -74.075, 39.94, 13], ['Little Egg Harbor', -74.33, 39.58, 12.3],
+  ['Atlantic City', -74.43, 39.37, 12.6], ['Ocean City', -74.58, 39.27, 12.8], ['Delaware Bayshore', -75.15, 39.25, 11.3], ['Whole coast', -74.55, 39.75, 7.4] ];
+(async function explore() {
+  const map = newMap('mapMax');
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  const meta = await getJSON('data/maxdepth/meta.json');
+  const hwm = await getJSON('data/hwm.geojson');
+  await new Promise(r => map.on('load', r));
+  if (meta) {
+    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: meta.minzoom, maxzoom: meta.maxzoom, bounds: meta.bounds });
+    map.addLayer({ id: 'maxd', type: 'raster', source: 'maxd', paint: { 'raster-resampling': 'nearest' } });
+  }
+  addLabels(map);
+  if (hwm) {
+    map.addSource('hwm', { type: 'geojson', data: hwm });
+    map.addLayer({ id: 'hwm', type: 'circle', source: 'hwm', paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 4, 13, 8],
+      'circle-color': ['interpolate', ['linear'], ['get', 'diff_m'], -1, '#f28c3a', -0.3, '#c9926a', -0.29, '#8a8f99', 0.29, '#8a8f99', 0.3, '#9f8ac9', 1, '#a98bf0'],
+      'circle-stroke-color': '#0b0f17', 'circle-stroke-width': 2 } });
+    map.on('mouseenter', 'hwm', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'hwm', () => map.getCanvas().style.cursor = '');
+    map.on('click', 'hwm', e => {
+      const p = e.features[0].properties, d = +p.diff_m;
+      new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(
+        `<b>${p.place || 'High-water mark ' + p.id}</b><br>Measured high water: <b>${(+p.obs_m).toFixed(2)} m</b> (${ft(+p.obs_m)} ft)<br>` +
+        `Model: <b>${(+p.model_m).toFixed(2)} m</b> (${ft(+p.model_m)} ft)<br>` +
+        `<span style="color:${Math.abs(d) < .3 ? 'var(--ink-2)' : d < 0 ? 'var(--under)' : 'var(--over)'}">Model ${d >= 0 ? 'higher' : 'lower'} by ${Math.abs(d).toFixed(2)} m</span>` +
+        `<br><span style="color:var(--ink-3);font-size:11px">Heights above NAVD88 (roughly mean sea level). USGS mark ${p.id}.</span>`).addTo(map);
+    });
+  }
+  document.getElementById('tgHwm').onchange = e => map.getLayer('hwm') && map.setLayoutProperty('hwm', 'visibility', e.target.checked ? 'visible' : 'none');
+  document.getElementById('tgSat').onchange = e => { map.setLayoutProperty('sat', 'visibility', e.target.checked ? 'visible' : 'none'); };
+  const box = document.getElementById('towns');
+  TOWNS.forEach(([name, x, y, z]) => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = name;
+    b.onclick = () => map.flyTo({ center: [x, y], zoom: z, speed: 1.4 }); box.appendChild(b); });
+  if (!meta) map.getContainer().insertAdjacentHTML('beforeend', '<div class="overlay-ctl" style="left:auto;right:12px;top:auto;bottom:12px">Detailed flood tiles coming soon</div>');
+})();
+
+/* ---------- 3. Sea-level rise ---------- */
+(async function slr() {
+  const meta = await getJSON('data/slr/meta.json'), md = await getJSON('data/maxdepth/meta.json');
+  const tiles = document.getElementById('slrTiles');
+  if (!meta) { pending(document.getElementById('mapSlr'), 'Sea-level-rise maps'); return; }
+  const km = md && md.flooded_km2 || {};
+  const lab = { slr0: 'as in 2012', slr2: 'with +2 m', slr3: 'with +3 m' };
+  tiles.innerHTML = ['slr0', 'slr2', 'slr3'].filter(k => km[k] != null).map(k =>
+    `<div class="tile"><div class="num">${Math.round(km[k]).toLocaleString()} km²</div><div class="lbl">normally dry land flooded, sea ${lab[k]}</div></div>`).join('');
+  const map = newMap('mapSlr');
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  await new Promise(r => map.on('load', r));
+  ['0', '2', '3'].forEach(s => {
+    map.addSource('slr' + s, { type: 'image', url: `data/slr/slr${s}.webp`, coordinates: meta.coordinates });
+    map.addLayer({ id: 'slr' + s, type: 'raster', source: 'slr' + s, layout: { visibility: s === '0' ? 'visible' : 'none' }, paint: { 'raster-fade-duration': 0 } });
+  });
+  addLabels(map);
+  document.querySelectorAll('[data-slr]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-slr]').forEach(o => { const on = o === b; o.setAttribute('aria-pressed', on); o.classList.toggle('ghost', !on); });
+    ['0', '2', '3'].forEach(s => map.setLayoutProperty('slr' + s, 'visibility', s === b.dataset.slr ? 'visible' : 'none'));
+  });
+})();
+
+/* ---------- 4. Social vulnerability ---------- */
+(async function svi() {
+  const tracts = await getJSON('data/svi_tracts.geojson'), sum = await getJSON('data/svi_summary.json'), md = await getJSON('data/maxdepth/meta.json');
+  if (!tracts) { pending(document.getElementById('mapSvi'), 'The social vulnerability map'); return; }
+  if (sum) renderSviSummary(sum);
+  const map = newMap('mapSvi', { center: [-74.4, 40.0], zoom: 7.6 });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  await new Promise(r => map.on('load', r));
+  map.addSource('tr', { type: 'geojson', data: tracts });
+  map.addLayer({ id: 'tr', type: 'fill', source: 'tr', filter: ['>', ['coalesce', ['get', 'flooded_pct'], 0], 0.5],
+    paint: { 'fill-color': ['interpolate', ['linear'], ['coalesce', ['get', 'svi'], 0], 0, '#3b2c16', 0.5, '#9a6a26', 1, '#ffc061'], 'fill-opacity': 0.8 } });
+  map.addLayer({ id: 'tr-line', type: 'line', source: 'tr', filter: ['>', ['coalesce', ['get', 'flooded_pct'], 0], 0.5], paint: { 'line-color': '#0b0f17', 'line-width': 0.6 } });
+  if (md) {
+    map.addSource('maxd', { type: 'raster', tiles: ['data/maxdepth/{z}/{x}/{y}.png'], tileSize: 256, minzoom: md.minzoom, maxzoom: md.maxzoom, bounds: md.bounds });
+    map.addLayer({ id: 'maxd', type: 'raster', source: 'maxd', paint: { 'raster-opacity': 0.85 } });
+  }
+  addLabels(map);
+  document.getElementById('tgSviFlood').onchange = e => map.getLayer('maxd') && map.setLayoutProperty('maxd', 'visibility', e.target.checked ? 'visible' : 'none');
+  map.on('click', 'tr', e => { const p = e.features[0].properties;
+    new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(e.lngLat).setHTML(
+      `<b>${p.county || ''} tract ${p.geoid}</b><br>Social vulnerability: <b>${Math.round(+p.svi * 100)}th percentile</b> in NJ<br>` +
+      `Population: ${(+p.pop).toLocaleString()}<br>Land flooded in the model: <b>${(+p.flooded_pct).toFixed(1)}%</b>`).addTo(map); });
+  map.on('mouseenter', 'tr', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'tr', () => map.getCanvas().style.cursor = '');
+})();
+function renderSviSummary(s) {
+  const tiles = [];
+  if (s.pop_in_tracts_flooded_ge10pct != null) tiles.push([Math.round(s.pop_in_tracts_flooded_ge10pct).toLocaleString(), 'people (2010 Census) live in census tracts where the model floods ≥10% of the land']);
+  if (s.n_tracts_flooded_ge10pct != null) tiles.push([s.n_tracts_flooded_ge10pct, 'such tracts']);
+  if (s.n_tracts_flooded_ge10pct_and_svi_ge075 != null) tiles.push([s.n_tracts_flooded_ge10pct_and_svi_ge075, `of them are among New Jersey’s most vulnerable quarter of tracts (${Math.round(s.pop_in_tracts_flooded_ge10pct_and_svi_ge075).toLocaleString()} people)`]);
+  document.getElementById('sviTiles').innerHTML = tiles.map(([n, l]) => `<div class="tile"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join('');
+  const q = s.pop_in_tracts_flooded_ge10pct_by_svi_quartile;
+  if (q) {
+    const entries = Object.entries(q).filter(([k]) => k !== 'no_svi'), mx = Math.max(...entries.map(e => +e[1]));
+    const names = ['Least vulnerable quarter', 'Second quarter', 'Third quarter', 'Most vulnerable quarter'];
+    const shade = ['#5a4220', '#8a6226', '#c48d39', '#ffc061'];
+    document.getElementById('sviBars').innerHTML = '<div class="note" style="margin-bottom:4px">People in those tracts, by the tract’s vulnerability</div><div class="bars">' +
+      entries.map(([k, v], j) => `<div class="bar"><span>${names[j] || k}</span><div class="track"><div class="fill" style="width:${(100 * v / mx).toFixed(1)}%;background:${shade[j] || '#c48d39'}"></div></div><span class="v">${Math.round(v).toLocaleString()}</span></div>`).join('') + '</div>';
+  }
+}
+
+/* ---------- 5. Accuracy ---------- */
+(async function check() {
+  const acc = await getJSON('data/accuracy.json'), g = await getJSON('data/gauges.json');
+  const tiles = document.getElementById('accTiles');
+  if (acc) {
+    const t = [], h = acc.high_water_marks || {}, fx = acc.flood_extent || {};
+    if (h.share_within_0_3m != null) t.push([Math.round(h.share_within_0_3m * 100) + '%', `of ${h.n_marks_scored} surveyed high-water marks: model within 30 cm (1 ft)`]);
+    if (h.share_within_0_5m != null) t.push([Math.round(h.share_within_0_5m * 100) + '%', 'within 50 cm (1.6 ft)']);
+    if (h.median_abs_diff_m != null) t.push([Math.round(h.median_abs_diff_m * 100) + ' cm', 'typical (median) miss at a mark — model value = median within 50 m of the mark']);
+    if (fx.csi != null) t.push([fx.csi.toFixed(2), 'agreement with FEMA’s mapped Sandy flood extent in New Jersey (critical success index; 1 = perfect)']);
+    tiles.innerHTML = t.map(([n, l]) => `<div class="tile"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join('');
+  }
+  const box = document.getElementById('gaugeCharts');
+  if (!g || !g.stations) { pending(box, 'Gauge comparisons'); return; }
+  g.stations.forEach(st => {
+    const card = document.createElement('div'); card.className = 'chartcard';
+    const pk = (acc && acc.gauges || []).find(x => x.id === st.id);
+    card.innerHTML = `<h3>${st.name}</h3><div class="sub">${st.source || ''} gauge${pk && pk.peak_err_m != null ? ` · model peak ${pk.peak_err_m >= 0 ? '+' : ''}${(pk.peak_err_m * 100).toFixed(0)} cm vs measured` : ''}</div><div class="cv"><canvas></canvas></div>${pk && pk.note ? `<div class="sub" style="margin-top:6px">${pk.note}</div>` : ''}`;
+    box.appendChild(card); gaugeChart(card.querySelector('canvas'), st, false);
+  });
+})();
+</script>
+</body>
+</html>
