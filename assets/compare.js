@@ -4,7 +4,8 @@ const D=window.GALLERY_DATA, arms=Object.keys(D.arms).sort();
 const selA=document.getElementById('armA'), selB=document.getElementById('armB');
 const rowsEl=document.getElementById('figs'), tbl=document.getElementById('diff');
 const head=document.getElementById('pairhead');
-let mode='side';
+let mode=q0().get('m')||'one';
+function q0(){return new URLSearchParams(location.hash.slice(1));}
 arms.forEach(a=>{[selA,selB].forEach(s=>{const o=document.createElement('option');o.value=a;o.textContent=a;s.appendChild(o);});});
 const q=new URLSearchParams(location.hash.slice(1));
 let b=q.get('b')||arms.find(a=>a!==(D.reference||''))||arms[0];
@@ -19,13 +20,21 @@ const fmt=(v,f)=>{if(v==null||v===''||(typeof v==='number'&&!isFinite(v)))return
  const m=f.match(/(\+?)\.(\d)f/); if(m){const s=v.toFixed(+m[2]);return (m[1]&&v>=0?'+':'')+s;} return String(v);};
 function badges(fl){return (fl||[]).map(f=>`<span class="badge ${f.level}" title="${esc(f.text)}">${f.level==='serious'?'!! ':f.level==='caution'?'! ':'i '}${esc(f.code)}</span>`).join('');}
 function render(){
- a=selA.value;b=selB.value;history.replaceState(null,'','#a='+encodeURIComponent(a)+'&b='+encodeURIComponent(b));
+ a=selA.value;b=selB.value;history.replaceState(null,'','#a='+encodeURIComponent(a)+'&b='+encodeURIComponent(b)+'&m='+mode);
+ const one=mode==='one';document.querySelectorAll('.onlypair').forEach(e=>{e.hidden=one;});
+ document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.mode===mode));
  const A=D.arms[a],B=D.arms[b];
  const fa=(A.card.fingerprint||{}).sha,fb=(B.card.fingerprint||{}).sha;
- head.innerHTML=`<p class="note">A <b>${esc(a)}</b> ${badges(A.flags)}<br>B <b>${esc(b)}</b> ${badges(B.flags)}</p>`+
+ if(one){head.innerHTML=`<p class="note"><b>${esc(a)}</b> ${badges(A.flags)} · <a href="${esc(A.slug)}/index.html">run card and full metrics</a></p>`+
+  `<p class="note">HWM numbers: estimator ${esc(A.metrics.hwm_estimator)}, radius ${esc(A.metrics.hwm_radius_m)} m.</p>`;}
+ else head.innerHTML=`<p class="note">A <b>${esc(a)}</b> ${badges(A.flags)}<br>B <b>${esc(b)}</b> ${badges(B.flags)}</p>`+
   `<p class="note">${fa&&fa===fb?'Same domain fingerprint ('+esc(fa)+') — the two are on one mesh and bed.':'⚠️ Different fingerprints ('+esc(fa)+' vs '+esc(fb)+') — not the same model; do not difference.'}`+
   ` HWM numbers: estimator ${esc(A.metrics.hwm_estimator)} / ${esc(B.metrics.hwm_estimator)}, radius ${esc(A.metrics.hwm_radius_m)} / ${esc(B.metrics.hwm_radius_m)} m. A pooled difference is not a paired test — use scripts/paired_hwm_bootstrap.py.</p>`;
- let h='<thead><tr><th>metric</th><th class="num">A</th><th class="num">B</th><th class="num">B − A</th></tr></thead><tbody>';
+ if(one){let h='<thead><tr><th>metric</th><th class="num">value</th></tr></thead><tbody>';
+  D.headline.forEach(([k,l,f])=>{h+=`<tr><td>${esc(l)} <span class="note">${esc(k)}</span></td><td class="num">${fmt(A.metrics[k],f)}</td></tr>`;});
+  D.labels.forEach(k=>{h+=`<tr><td>${esc(k)}</td><td class="lbl">${esc((A.card.labels||{})[k])}</td></tr>`;});
+  tbl.innerHTML=h+'</tbody>';}
+ else{let h='<thead><tr><th>metric</th><th class="num">A</th><th class="num">B</th><th class="num">B − A</th></tr></thead><tbody>';
  D.headline.forEach(([k,l,f,better])=>{const x=A.metrics[k],y=B.metrics[k];
   let d='',cls='';if(typeof x==='number'&&typeof y==='number'&&isFinite(x)&&isFinite(y)){const dv=y-x;
    d=fmt(dv,f==='.0%'?'.0%':(f==='d'?'d':'+'+f.replace('+','')));
@@ -34,14 +43,15 @@ function render(){
   h+=`<tr><td>${esc(l)} <span class="note">${esc(k)}</span></td><td class="num">${fmt(x,f)}</td><td class="num">${fmt(y,f)}</td><td class="num diff ${cls}">${d}</td></tr>`;});
  D.labels.forEach(k=>{const x=(A.card.labels||{})[k],y=(B.card.labels||{})[k];
   h+=`<tr><td>${esc(k)}</td><td class="lbl">${esc(x)}</td><td class="lbl">${esc(y)}</td><td class="lbl">${String(x)===String(y)?'':'differs'}</td></tr>`;});
- tbl.innerHTML=h+'</tbody>';
+ tbl.innerHTML=h+'</tbody>';}
  const fA=Object.fromEntries((A.figures||[]).map(f=>[f.key,f])),fB=Object.fromEntries((B.figures||[]).map(f=>[f.key,f]));
  let out='';
  D.fig_order.forEach(k=>{const x=fA[k],y=fB[k];if(!x&&!y)return;const t=(x||y).title;
   const side=(f,arm,lab)=>{if(!f)return `<div class="side"><h4>${lab} · ${esc(arm)}</h4><div class="skip">not drawn</div></div>`;
    if(!f.file)return `<div class="side"><h4>${lab} · ${esc(arm)}</h4><div class="skip">${esc(f.skipped||f.error||'not drawn')}</div></div>`;
    return `<div class="side"><h4>${lab} · ${esc(arm)}</h4><a href="${esc(D.arms[arm].slug)}/${esc(f.file)}"><img loading="lazy" src="${esc(D.arms[arm].slug)}/${esc(f.file)}" alt="${esc(t)} — ${esc(arm)}"></a></div>`;};
-  if(mode==='side'||!(x&&x.file&&y&&y.file)){
+  if(one){if(!x)return;out+=`<figure><h3>${esc(t)}</h3>${x.file?`<a href="${esc(D.arms[a].slug)}/${esc(x.file)}"><img loading="lazy" src="${esc(D.arms[a].slug)}/${esc(x.file)}" alt="${esc(t)} — ${esc(a)}"></a>`:`<div class="skip">${esc(x.skipped||x.error||'not drawn')}</div>`}<figcaption>${esc(x.caption||'')}</figcaption></figure>`;}
+  else if(mode==='side'||!(x&&x.file&&y&&y.file)){
    out+=`<figure><h3>${esc(t)}</h3><div class="pair">${side(x,a,'A')}${side(y,b,'B')}</div><figcaption>${esc((y||x).caption||'')}</figcaption></figure>`;
   }else{
    out+=`<figure><h3>${esc(t)}</h3><div class="pair one"><div class="side"><h4 class="swaplab">A · ${esc(a)} — click the image to swap</h4><img class="swap" data-a="${esc(D.arms[a].slug)}/${esc(x.file)}" data-b="${esc(D.arms[b].slug)}/${esc(y.file)}" data-la="A · ${esc(a)}" data-lb="B · ${esc(b)}" src="${esc(D.arms[a].slug)}/${esc(x.file)}" alt="${esc(t)}" tabindex="0"></div></div><figcaption>${esc(y.caption||'')}</figcaption></figure>`;}
@@ -53,7 +63,6 @@ function render(){
 }
 selA.addEventListener('change',render);selB.addEventListener('change',render);
 document.getElementById('swapAB').addEventListener('click',()=>{const t=selA.value;selA.value=selB.value;selB.value=t;render();});
-document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{mode=btn.dataset.mode;
- document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x===btn));render();}));
+document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{mode=btn.dataset.mode;render();}));
 render();
 })();

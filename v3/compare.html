@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>v3 · compare</title>
+<title>v3 · view runs</title>
 <meta name="description" content="Preliminary research diagnostics — not peer-reviewed results.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,9 +11,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/site.css">
 </head><body><div class="wrap">
-<nav class="crumbs"><a href="../index.html">runs</a> / <a href="index.html">v3</a> / compare</nav><header class="mast"><h1>v3: compare two arms</h1><p>Pick two arms. Every figure of the pair is drawn on the same fixed scale and frame, so they compare by eye: side by side, or in one frame (click to swap).</p><p class="prelim">Preliminary research diagnostics — not peer-reviewed results.</p></header><div class="ctl"><label>arm A<select id="armA"></select></label><button id="swapAB" type="button">A ⇄ B</button><label>arm B<select id="armB"></select></label><span><button type="button" data-mode="side" aria-pressed="true">side by side</button> <button type="button" data-mode="swap" aria-pressed="false">one frame, click to swap</button></span></div><section id="pairhead"></section><section><h2>Metrics</h2><div class="scroll"><table id="diff"></table></div><p class="note">Green / orange colour a difference by the metric's direction (lower RMSE, higher CSI, bias nearer zero); it is not a ranking and not a test.</p></section><section><h2>Figures</h2><div id="figs"></div></section><script src="data.js"></script><script src="../assets/compare.js"></script>
+<nav class="crumbs"><a href="../index.html">runs</a> / <a href="index.html">v3</a> / view runs</nav><header class="mast"><h1>v3: view runs</h1><p>Pick a run to see its figures and scores. To compare two runs, switch to side by side, or to one frame and click the image to swap. Every figure is drawn on the same fixed scale and frame, so two runs compare by eye.</p><p class="prelim">Preliminary research diagnostics — not peer-reviewed results.</p></header><div class="ctl"><span><button type="button" data-mode="one" aria-pressed="true">one run</button> <button type="button" data-mode="side" aria-pressed="false">side by side</button> <button type="button" data-mode="swap" aria-pressed="false">one frame, click to swap</button></span><label>run<select id="armA"></select></label><button id="swapAB" class="onlypair" type="button">A ⇄ B</button><label class="onlypair">compare with<select id="armB"></select></label></div><section id="pairhead"></section><section><h2>Scores</h2><div class="scroll"><table id="diff"></table></div><p class="note onlypair">Green / pink colour a difference by the metric's direction (lower RMSE, higher CSI, bias nearer zero); it is not a ranking and not a test.</p></section><section><h2>Figures</h2><div id="figs"></div></section><script src="data.js"></script><script src="../assets/compare.js"></script>
 <footer>Preliminary research diagnostics — not peer-reviewed results. SFINCS compound-flood hindcast of Hurricane Sandy (28–31 Oct 2012),
 New York Bight. Figures are made by <code>nj_sfincs/gallery.py</code> in the research repo
 and collected by <code>scripts/publish_gallery.py</code>; every number is the scorer's or
-the arm's <code>metrics.csv</code> row. Built 2026-10-20 13:03.</footer>
+the arm's <code>metrics.csv</code> row. Built 2026-10-20 14:12.</footer>
 </div><script src="../assets/sort.js"></script></body></html>
