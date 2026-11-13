@@ -41,6 +41,7 @@ dl.card dt{color:var(--ink-3)}
 dl.card dd{margin:0;overflow-wrap:anywhere}
 figure{margin:0 0 32px}
 figure h3{font-size:19px;margin:0 0 6px}
+#scores h3{font-size:19px;margin:16px 0 6px}#scores .tiles{margin:4px 0 6px}
 figure img{width:100%;height:auto;display:block;border-radius:4px}
 figcaption{color:var(--ink-2);font-size:15px;max-width:100ch;margin-top:6px}
 .skip{border:1px dashed var(--rule);color:var(--ink-3);padding:14px}
